@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* ─── SwissTrust Design System ─────────────────────────────────────────────── */
+
+:root {
+  --color-navy:     #1B2A4A;
+  --color-red:      #D4001A;
+  --color-slate:    #4A5568;
+  --color-silver:   #E8ECF0;
+  --color-cream:    #F7F8FA;
+  --color-white:    #FFFFFF;
+  --color-verified: #1A7A4A;
+  --color-pending:  #B45309;
+  --color-danger:   #C41A1A;
+
+  --background: var(--color-white);
+  --foreground: var(--color-navy);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-navy: #1B2A4A;
+  --color-red: #D4001A;
+  --color-slate: #4A5568;
+  --color-silver: #E8ECF0;
+  --color-cream: #F7F8FA;
+  --color-verified: #1A7A4A;
+  --color-pending: #B45309;
+  --color-danger: #C41A1A;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-navy);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+
+h1, h2, h3 {
+  font-family: 'DM Serif Display', Georgia, serif;
+  color: var(--color-navy);
+}
+
+/* ─── Certificate page specific ─────────────────────────────────────────── */
+
+.cert-page {
+  background: var(--color-white);
+  min-height: 100vh;
+}
+
+.trust-score-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+
+.trust-score-A { background: #DCFCE7; color: #1A7A4A; border: 2px solid #1A7A4A; }
+.trust-score-B { background: #FEF3C7; color: #B45309; border: 2px solid #B45309; }
+.trust-score-C { background: #FEE2E2; color: #C41A1A; border: 2px solid #C41A1A; }
+.trust-score-UNRATED { background: #F3F4F6; color: #6B7280; border: 2px solid #D1D5DB; }
+
+/* ─── Verification badge animation ──────────────────────────────────────── */
+
+@keyframes verify-pop {
+  0% { transform: scale(0); opacity: 0; }
+  70% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.verify-badge-animate {
+  animation: verify-pop 0.5s ease-out forwards;
+}
+
+/* ─── Print stylesheet ───────────────────────────────────────────────────── */
+
+@media print {
+  .no-print { display: none !important; }
+  .cert-page { background: white; }
+  body { background: white; }
+}
