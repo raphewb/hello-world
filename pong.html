@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ping Pong</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: monospace;
+      color: #fff;
+    }
+    canvas {
+      border: 2px solid #fff;
+    }
+    #info {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="800" height="500"></canvas>
+  <div id="info">W/S = Left paddle &nbsp;|&nbsp; ↑/↓ = Right paddle &nbsp;|&nbsp; Space = Pause</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const PADDLE_W = 12;
+    const PADDLE_H = 80;
+    const BALL_SIZE = 10;
+    const PADDLE_SPEED = 5;
+    const WIN_SCORE = 7;
+
+    let state = 'playing';
+
+    const left = { x: 20, y: H / 2 - PADDLE_H / 2, score: 0 };
+    const right = { x: W - 20 - PADDLE_W, y: H / 2 - PADDLE_H / 2, score: 0 };
+
+    function resetBall(direction = 1) {
+      return {
+        x: W / 2,
+        y: H / 2,
+        vx: 4 * direction,
+        vy: (Math.random() * 4 - 2)
+      };
+    }
+
+    let ball = resetBall();
+
+    const keys = {};
+    document.addEventListener('keydown', e => {
+      keys[e.key] = true;
+      if (e.key === ' ') {
+        if (state === 'playing') state = 'paused';
+        else if (state === 'paused') state = 'playing';
+        else if (state === 'over') restart();
+      }
+      e.preventDefault();
+    });
+    document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    function restart() {
+      left.score = 0;
+      right.score = 0;
+      left.y = H / 2 - PADDLE_H / 2;
+      right.y = H / 2 - PADDLE_H / 2;
+      ball = resetBall();
+      state = 'playing';
+    }
+
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(max, val));
+    }
+
+    function update() {
+      if (state !== 'playing') return;
+
+      // Move paddles
+      if (keys['w'] || keys['W']) left.y -= PADDLE_SPEED;
+      if (keys['s'] || keys['S']) left.y += PADDLE_SPEED;
+      if (keys['ArrowUp']) right.y -= PADDLE_SPEED;
+      if (keys['ArrowDown']) right.y += PADDLE_SPEED;
+
+      left.y = clamp(left.y, 0, H - PADDLE_H);
+      right.y = clamp(right.y, 0, H - PADDLE_H);
+
+      // Move ball
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      // Top/bottom bounce
+      if (ball.y <= 0) { ball.y = 0; ball.vy *= -1; }
+      if (ball.y + BALL_SIZE >= H) { ball.y = H - BALL_SIZE; ball.vy *= -1; }
+
+      // Left paddle collision
+      if (
+        ball.x <= left.x + PADDLE_W &&
+        ball.x >= left.x &&
+        ball.y + BALL_SIZE >= left.y &&
+        ball.y <= left.y + PADDLE_H
+      ) {
+        ball.x = left.x + PADDLE_W;
+        ball.vx = Math.abs(ball.vx) * 1.05;
+        ball.vy += (ball.y + BALL_SIZE / 2 - (left.y + PADDLE_H / 2)) * 0.1;
+        ball.vx = clamp(ball.vx, -15, 15);
+        ball.vy = clamp(ball.vy, -8, 8);
+      }
+
+      // Right paddle collision
+      if (
+        ball.x + BALL_SIZE >= right.x &&
+        ball.x + BALL_SIZE <= right.x + PADDLE_W &&
+        ball.y + BALL_SIZE >= right.y &&
+        ball.y <= right.y + PADDLE_H
+      ) {
+        ball.x = right.x - BALL_SIZE;
+        ball.vx = -Math.abs(ball.vx) * 1.05;
+        ball.vy += (ball.y + BALL_SIZE / 2 - (right.y + PADDLE_H / 2)) * 0.1;
+        ball.vx = clamp(ball.vx, -15, 15);
+        ball.vy = clamp(ball.vy, -8, 8);
+      }
+
+      // Score
+      if (ball.x < 0) {
+        right.score++;
+        ball = resetBall(1);
+        if (right.score >= WIN_SCORE) state = 'over';
+      }
+      if (ball.x > W) {
+        left.score++;
+        ball = resetBall(-1);
+        if (left.score >= WIN_SCORE) state = 'over';
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // Center dashed line
+      ctx.setLineDash([10, 10]);
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 0);
+      ctx.lineTo(W / 2, H);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Scores
+      ctx.fillStyle = '#fff';
+      ctx.font = '48px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(left.score, W / 4, 60);
+      ctx.fillText(right.score, (3 * W) / 4, 60);
+
+      // Paddles
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(left.x, left.y, PADDLE_W, PADDLE_H);
+      ctx.fillRect(right.x, right.y, PADDLE_W, PADDLE_H);
+
+      // Ball
+      ctx.fillRect(ball.x, ball.y, BALL_SIZE, BALL_SIZE);
+
+      // Overlays
+      if (state === 'paused') {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff';
+        ctx.font = '48px monospace';
+        ctx.fillText('PAUSED', W / 2, H / 2);
+        ctx.font = '20px monospace';
+        ctx.fillText('Press Space to resume', W / 2, H / 2 + 50);
+      }
+
+      if (state === 'over') {
+        const winner = left.score >= WIN_SCORE ? 'Left' : 'Right';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#fff';
+        ctx.font = '48px monospace';
+        ctx.fillText(`${winner} Wins!`, W / 2, H / 2);
+        ctx.font = '20px monospace';
+        ctx.fillText('Press Space to play again', W / 2, H / 2 + 50);
+      }
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
