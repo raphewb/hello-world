@@ -1,0 +1,401 @@
+// SwissTrust Dossier — Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  TENANT
+  AGENT
+  LANDLORD
+  ADMIN
+}
+
+enum ResidencePermitType {
+  CITIZEN
+  PERMIT_B
+  PERMIT_C
+  PERMIT_G
+  PERMIT_L
+  OTHER
+}
+
+enum EmploymentType {
+  EMPLOYED
+  SELF_EMPLOYED
+  STUDENT
+  RETIRED
+  OTHER
+}
+
+enum TrustScore {
+  A
+  B
+  C
+  UNRATED
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentType {
+  PASSPORT
+  RESIDENCE_PERMIT
+  SALARY_SLIP_1
+  SALARY_SLIP_2
+  SALARY_SLIP_3
+  TAX_RETURN
+  BETREIBUNGSAUSZUG
+  REFERENCE_LETTER
+  RENTAL_GUARANTEE
+  LIABILITY_INSURANCE
+  EMPLOYMENT_CONTRACT
+  OTHER
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+  EXPIRING_SOON
+}
+
+enum SwissCanton {
+  AG
+  AI
+  AR
+  BE
+  BL
+  BS
+  FR
+  GE
+  GL
+  GR
+  JU
+  LU
+  NE
+  NW
+  OW
+  SG
+  SH
+  SO
+  SZ
+  TG
+  TI
+  UR
+  VD
+  VS
+  ZG
+  ZH
+}
+
+enum RegieVerificationMethod {
+  EMAIL_DOMAIN
+  SVIT
+  MANUAL
+  INVITED
+}
+
+enum SharingMode {
+  DIRECTED
+  OPEN
+  ON_REQUEST
+}
+
+enum ViewerType {
+  PUBLIC
+  AGENT
+  LANDLORD
+  UNREGISTERED
+}
+
+enum AccessType {
+  PUBLIC_SUMMARY
+  FULL_DOSSIER_VIEWED
+  ACCESS_REQUESTED
+  ACCESS_APPROVED
+  ACCESS_DENIED
+  ACCESS_AUTO_APPROVED
+}
+
+enum OwnerType {
+  REGIE
+  LANDLORD
+}
+
+enum VerificationDocType {
+  GRUNDBUCHAUSZUG
+  PROPERTY_TAX_BILL
+  LEASE
+}
+
+// ─── Core Models ────────────────────────────────────────────────────────────
+
+model User {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String    @unique
+  role      UserRole
+  createdAt DateTime  @default(now()) @map("created_at")
+  lastLogin DateTime? @map("last_login")
+  isActive  Boolean   @default(true) @map("is_active")
+
+  tenantProfile   TenantProfile?
+  agentProfile    AgentProfile?
+  landlordProfile LandlordProfile?
+
+  certificateAccessAsViewer CertificateAccess[] @relation("ViewerUser")
+  notifications             Notification[]
+
+  @@map("users")
+}
+
+model TenantProfile {
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String              @unique @map("user_id") @db.Uuid
+  fullName               String              @map("full_name")
+  dateOfBirth            DateTime?           @map("date_of_birth") @db.Date
+  nationality            String?
+  residencePermitType    ResidencePermitType @default(CITIZEN) @map("residence_permit_type")
+  employerName           String?             @map("employer_name")
+  employmentType         EmploymentType      @default(EMPLOYED) @map("employment_type")
+  monthlyIncomeChf       Int?                @map("monthly_income_chf")
+  occupantCount          Int                 @default(1) @map("occupant_count")
+  occupantDetails        Json                @default("[]") @map("occupant_details")
+  isSmoker               Boolean             @default(false) @map("is_smoker")
+  hasPets                Boolean             @default(false) @map("has_pets")
+  petDetails             String?             @map("pet_details")
+  currentAddress         String?             @map("current_address")
+  trustScore             TrustScore          @default(UNRATED) @map("trust_score")
+  verificationStatus     VerificationStatus  @default(UNVERIFIED) @map("verification_status")
+  profileCompleteness    Int                 @default(0) @map("profile_completeness")
+  betreibungsauszugClean Boolean?            @map("betreibungsauszug_clean")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents    Document[]
+  certificates Certificate[]
+  ghostDeliveries GhostDelivery[]
+
+  @@map("tenant_profiles")
+}
+
+model Document {
+  id                 String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                     @map("tenant_id") @db.Uuid
+  type               DocumentType
+  fileUrl            String                     @map("file_url")
+  fileName           String                     @map("file_name")
+  fileSizeBytes      Int                        @map("file_size_bytes")
+  uploadedAt         DateTime                   @default(now()) @map("uploaded_at")
+  validFrom          DateTime?                  @map("valid_from") @db.Date
+  expiresAt          DateTime?                  @map("expires_at") @db.Date
+  verificationStatus DocumentVerificationStatus @default(PENDING) @map("verification_status")
+  aiConfidenceScore  Float?                     @map("ai_confidence_score")
+  aiVerifiedAt       DateTime?                  @map("ai_verified_at")
+  aiRejectionReason  String?                    @map("ai_rejection_reason")
+  aiExtractedData    Json?                      @map("ai_extracted_data")
+  isCurrent          Boolean                    @default(true) @map("is_current")
+
+  tenant TenantProfile @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model Regie {
+  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String
+  slug                 String                   @unique
+  address              String
+  canton               SwissCanton
+  phone                String?
+  email                String?
+  website              String?
+  svitMembershipNumber String?                  @map("svit_membership_number")
+  logoUrl              String?                  @map("logo_url")
+  hasAccount           Boolean                  @default(false) @map("has_account")
+  isVerified           Boolean                  @default(false) @map("is_verified")
+  verificationMethod   RegieVerificationMethod? @map("verification_method")
+  ghostDeliveryCount   Int                      @default(0) @map("ghost_delivery_count")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+
+  agents           AgentProfile[]
+  directedCerts    Certificate[]    @relation("DirectedRegie")
+  ghostDeliveries  GhostDelivery[]
+  agentInvitations AgentInvitation[]
+
+  @@map("regies")
+}
+
+model AgentProfile {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String   @unique @map("user_id") @db.Uuid
+  regieId              String   @map("regie_id") @db.Uuid
+  firstName            String   @map("first_name")
+  lastName             String   @map("last_name")
+  phone                String?
+  isCompanyAdmin       Boolean  @default(false) @map("is_company_admin")
+  isVerified           Boolean  @default(false) @map("is_verified")
+  canAccessFullDossier Boolean  @default(true) @map("can_access_full_dossier")
+  canPostListings      Boolean  @default(true) @map("can_post_listings")
+  canManageApplications Boolean @default(true) @map("can_manage_applications")
+  invitedByAgentId     String?  @map("invited_by_agent_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  regie           Regie           @relation(fields: [regieId], references: [id])
+  invitedBy       AgentProfile?   @relation("AgentInvitedBy", fields: [invitedByAgentId], references: [id])
+  invitees        AgentProfile[]  @relation("AgentInvitedBy")
+  directedCerts   Certificate[]   @relation("DirectedAgent")
+  sentInvitations AgentInvitation[]
+
+  @@map("agent_profiles")
+}
+
+model LandlordProfile {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String               @unique @map("user_id") @db.Uuid
+  firstName           String               @map("first_name")
+  lastName            String               @map("last_name")
+  phone               String?
+  verificationStatus  VerificationStatus   @default(UNVERIFIED) @map("verification_status")
+  verificationDocUrl  String?              @map("verification_doc_url")
+  verificationDocType VerificationDocType? @map("verification_doc_type")
+  propertyCount       Int                  @default(0) @map("property_count")
+  createdAt           DateTime             @default(now()) @map("created_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listings Listing[]
+
+  @@map("landlord_profiles")
+}
+
+model Certificate {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String      @map("tenant_id") @db.Uuid
+  propertyAddress    String      @map("property_address")
+  monthlyRentChf     Int         @map("monthly_rent_chf")
+  sharingMode        SharingMode @map("sharing_mode")
+  directedRegieId    String?     @map("directed_regie_id") @db.Uuid
+  directedAgentId    String?     @map("directed_agent_id") @db.Uuid
+  directedOwnerEmail String?     @map("directed_owner_email")
+  directedOwnerName  String?     @map("directed_owner_name")
+  qrCodeUrl          String?     @map("qr_code_url")
+  pdfUrl             String?     @map("pdf_url")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  expiresAt          DateTime    @map("expires_at")
+  isRevoked          Boolean     @default(false) @map("is_revoked")
+  revokedAt          DateTime?   @map("revoked_at")
+  accessCount        Int         @default(0) @map("access_count")
+  autoApproveHours   Int         @default(24) @map("auto_approve_hours")
+  notes              String?
+
+  tenant        TenantProfile     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  directedRegie Regie?            @relation("DirectedRegie", fields: [directedRegieId], references: [id])
+  directedAgent AgentProfile?     @relation("DirectedAgent", fields: [directedAgentId], references: [id])
+  accesses      CertificateAccess[]
+  ghostDelivery GhostDelivery?
+
+  @@map("certificates")
+}
+
+model CertificateAccess {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  certificateId String     @map("certificate_id") @db.Uuid
+  viewerUserId  String?    @map("viewer_user_id") @db.Uuid
+  viewerType    ViewerType @map("viewer_type")
+  accessType    AccessType @map("access_type")
+  ipAddress     String?    @map("ip_address")
+  userAgent     String?    @map("user_agent")
+  accessedAt    DateTime   @default(now()) @map("accessed_at")
+  approvedAt    DateTime?  @map("approved_at")
+  deniedAt      DateTime?  @map("denied_at")
+
+  certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  viewerUser  User?       @relation("ViewerUser", fields: [viewerUserId], references: [id])
+
+  @@map("certificate_accesses")
+}
+
+model GhostDelivery {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  certificateId    String    @unique @map("certificate_id") @db.Uuid
+  regieId          String    @map("regie_id") @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  invitationSent   Boolean   @default(false) @map("invitation_sent")
+  invitationSentAt DateTime? @map("invitation_sent_at")
+  followUpCount    Int       @default(0) @map("follow_up_count")
+  lastFollowUpAt   DateTime? @map("last_follow_up_at")
+  convertedAt      DateTime? @map("converted_at")
+
+  certificate Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  regie       Regie         @relation(fields: [regieId], references: [id])
+  tenant      TenantProfile @relation(fields: [tenantId], references: [id])
+
+  @@map("ghost_deliveries")
+}
+
+model Listing {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId           String      @map("owner_id") @db.Uuid
+  ownerType         OwnerType   @map("owner_type")
+  address           String
+  canton            SwissCanton
+  zipCode           String      @map("zip_code")
+  monthlyRentChf    Int         @map("monthly_rent_chf")
+  rooms             Float
+  sizeSqm           Int?        @map("size_sqm")
+  floor             Int?
+  availableFrom     DateTime    @map("available_from") @db.Date
+  description       String?
+  images            Json        @default("[]")
+  isActive          Boolean     @default(true) @map("is_active")
+  isFeatured        Boolean     @default(false) @map("is_featured")
+  applicationsCount Int         @default(0) @map("applications_count")
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  landlordProfile LandlordProfile? @relation(fields: [ownerId], references: [id])
+
+  @@map("listings")
+}
+
+model AgentInvitation {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  regieId    String    @map("regie_id") @db.Uuid
+  invitedBy  String    @map("invited_by") @db.Uuid
+  email      String
+  token      String    @unique
+  expiresAt  DateTime  @map("expires_at")
+  acceptedAt DateTime? @map("accepted_at")
+
+  regie   Regie        @relation(fields: [regieId], references: [id])
+  inviter AgentProfile @relation(fields: [invitedBy], references: [id])
+
+  @@map("agent_invitations")
+}
+
+model Notification {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String
+  title     String
+  body      String
+  data      Json     @default("{}")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
